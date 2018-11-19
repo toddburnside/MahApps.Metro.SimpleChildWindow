@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using MahApps.Metro.Controls;
 
 namespace MahApps.Metro.SimpleChildWindow
 {
@@ -80,7 +81,7 @@ namespace MahApps.Metro.SimpleChildWindow
 				activeDialogContainer.SetValue(Grid.RowProperty, (int)activeDialogContainer.GetValue(Grid.RowProperty) + 1);
 				activeDialogContainer.SetValue(Grid.RowSpanProperty, 1);
 			}
-			return ShowChildWindowInternalAsync<TResult>(dialog, activeDialogContainer, inactiveDialogContainer);
+			return ShowChildWindowInternalAsync<TResult>(dialog, activeDialogContainer, inactiveDialogContainer, window as MetroWindow);
 		}
 
 //		/// <summary>
@@ -127,14 +128,14 @@ namespace MahApps.Metro.SimpleChildWindow
 //			return ShowChildWindowInternalAsync<TResult>(dialog, container);
 //		}
 
-		private static Task<TResult> ShowChildWindowInternalAsync<TResult>(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer)
-		{
-			return AddDialogToContainerAsync(dialog, activeContainer, inactiveContainer)
-				.ContinueWith(task => { return (Task<TResult>) dialog.Dispatcher.Invoke(new Func<Task<TResult>>(() => OpenDialogAsync<TResult>(dialog, activeContainer, inactiveContainer))); })
-				.Unwrap();
-		}
+	    private static Task<TResult> ShowChildWindowInternalAsync<TResult>(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer, MetroWindow metroWindow)
+	    {
+	        return AddDialogToContainerAsync(dialog, activeContainer, inactiveContainer, metroWindow)
+	               .ContinueWith(task => { return (Task<TResult>)dialog.Dispatcher.Invoke(new Func<Task<TResult>>(() => OpenDialogAsync<TResult>(dialog, activeContainer, inactiveContainer, metroWindow))); })
+	               .Unwrap();
+	    }
 
-		private static Task AddDialogToContainerAsync(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer)
+	    private static Task AddDialogToContainerAsync(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer, MetroWindow metroWindow)
 		{
             // This breaks the MetroWindow.IsAnyDialogOpen property...
 			return Task.Factory.StartNew(() => dialog.Dispatcher.Invoke(() => {
@@ -145,10 +146,11 @@ namespace MahApps.Metro.SimpleChildWindow
 			        inactiveContainer.Children.Add(activeDialog);
 			    }
 			    activeContainer.Children.Add(dialog);
-			}));
+			    metroWindow?.SetValue(MetroWindow.IsAnyDialogOpenPropertyKey, activeContainer.Children.Count > 0);
+            }));
 		}
 
-		private static Task<TResult> OpenDialogAsync<TResult>(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer)
+		private static Task<TResult> OpenDialogAsync<TResult>(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer, MetroWindow metroWindow)
 		{
             // This mouse bit won't work, anymore. Not sure it is necessary for me. If needed, we may need to swap between the active and inactive
             // containers. Not sure how that would interact with the MahApps dialogs...
@@ -170,7 +172,7 @@ namespace MahApps.Metro.SimpleChildWindow
 			handler = (sender, args) => {
 				dialog.ClosingFinished -= handler;
 				dialog.PreviewMouseDown -= dialogOnMouseUp;
-				RemoveDialog(dialog, activeContainer, inactiveContainer);
+				RemoveDialog(dialog, activeContainer, inactiveContainer, metroWindow);
 				tcs.TrySetResult(dialog.ChildWindowResult is TResult ? (TResult)dialog.ChildWindowResult : default(TResult));
 			};
 			dialog.ClosingFinished += handler;
@@ -180,7 +182,7 @@ namespace MahApps.Metro.SimpleChildWindow
 			return tcs.Task;
 		}
 
-	    private static void RemoveDialog(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer)
+	    private static void RemoveDialog(ChildWindow dialog, Panel activeContainer, Panel inactiveContainer, MetroWindow metroWindow)
 	    {
             // This also breaks the MetroWindow IsAnyDialogOpen property...
 	        if (activeContainer.Children.Contains(dialog))
@@ -197,6 +199,8 @@ namespace MahApps.Metro.SimpleChildWindow
 	        {
                 inactiveContainer.Children.Remove(dialog);
 	        }
+
+	        metroWindow?.SetValue(MetroWindow.IsAnyDialogOpenPropertyKey, activeContainer.Children.Count > 0);
 	    }
 	}
 }
